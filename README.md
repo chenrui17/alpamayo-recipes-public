@@ -2,8 +2,8 @@
 
 A collection of end-to-end Alpamayo recipes for multiple versions (v1, v1.5, and beyond), designed
 to help developers quickly build, adapt, and deploy Alpamayo-based applications. This repo
-brings together battle-tested workflows across the Alpamayo ecosystem, including: post-training
-recipes (supervised fine-tuning, reinforcement learning, and distillation), auto-labeling and data curation workflows, etc.
+brings together battle-tested workflows across the Alpamayo ecosystem, including post-training
+recipes (supervised fine-tuning and reinforcement learning), auto-labeling and data curation workflows, etc.
 Whether you are experimenting locally or building a full production stack, this repository is
 intended as the primary starting point for developers to learn, customize, and extend
 Alpamayo for their own use cases.
@@ -17,8 +17,6 @@ Each recipe folder contains its own README with installation and training instru
 | [`recipes/alpamayo1_sft/`](recipes/alpamayo1_sft/README.md) | Alpamayo 1 supervised fine-tuning (HuggingFace Trainer + DeepSpeed) |
 | [`recipes/alpamayo1_5_sft/`](recipes/alpamayo1_5_sft/README.md) | Alpamayo 1.5 SFT (HuggingFace Trainer + DeepSpeed) |
 | [`recipes/alpamayo1_x_rl/`](recipes/alpamayo1_x_rl/README.md) | Alpamayo 1 and 1.5 RL post-training (Cosmos-RL / GRPO) |
-| [`recipes/distillation/`](recipes/distillation/README.md) | Distillation *(coming soon)* |
-| [`recipes/alpagym/`](recipes/alpagym/README.md) | AlpaGym *(coming soon)* |
 
 ## Utility Scripts
 
