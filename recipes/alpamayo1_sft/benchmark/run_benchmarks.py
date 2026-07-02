@@ -23,13 +23,13 @@ RECIPE_DIR = Path(__file__).resolve().parents[1]
 REPO_DIR = RECIPE_DIR.parents[1]
 RESULTS_DIR = RECIPE_DIR / "benchmark" / "results"
 REPORT_PATH = RECIPE_DIR / "benchmark" / "performance_optimization_report.md"
-DEFAULT_CHECKPOINT = Path("/raid/charlie/Alpamayo-R1-10B")
-DEFAULT_PAI_DIR = Path("/raid/charlie/pai_dataset")
 DEFAULT_DEEPSPEED = RECIPE_DIR / "configs" / "deepspeed" / "zero2.json"
-DEFAULT_ENV_PYTHON = Path(
-    "/raid/charlie/alpamayo/alpamayo-recipes/recipes/alpamayo1_sft/a1_sft/bin/python"
-)
 BENCH_CHUNKS = "[214,224,276,317,420,727,728,968,982,1519,1657,1984,2277,2368,2372,2447,2599,2634,2868]"
+
+
+def env_path(name: str) -> Path | None:
+    value = os.environ.get(name)
+    return Path(value) if value else None
 
 
 @dataclass(frozen=True)
@@ -134,9 +134,32 @@ VARIANTS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--python", type=Path, default=DEFAULT_ENV_PYTHON)
-    parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
-    parser.add_argument("--pai-dir", type=Path, default=DEFAULT_PAI_DIR)
+    default_checkpoint = env_path("ALPAMAYO_R1_CHECKPOINT")
+    default_pai_dir = env_path("ALPAMAYO_PAI_DIR")
+    default_python = env_path("ALPAMAYO_BENCH_PYTHON") or Path(sys.executable)
+    parser.add_argument(
+        "--python",
+        type=Path,
+        default=default_python,
+        help=(
+            "Python executable from the uv environment. Defaults to the current "
+            "interpreter, or ALPAMAYO_BENCH_PYTHON when set."
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=default_checkpoint,
+        required=default_checkpoint is None,
+        help="Alpamayo-R1 checkpoint. Can also be set via ALPAMAYO_R1_CHECKPOINT.",
+    )
+    parser.add_argument(
+        "--pai-dir",
+        type=Path,
+        default=default_pai_dir,
+        required=default_pai_dir is None,
+        help="PAI dataset root. Can also be set via ALPAMAYO_PAI_DIR.",
+    )
     parser.add_argument("--nproc-per-node", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=20)
     parser.add_argument("--stable-start-step", type=int, default=5)
@@ -343,18 +366,19 @@ def write_report(args: argparse.Namespace, results: list[dict[str, Any]]) -> Non
         pass
 
     lines = [
-        "# Alpamayo-1 SFT CoC / No-CoC 性能优化报告",
+        "# Alpamayo-1 SFT CoC / No-CoC Performance Optimization Report",
         "",
-        "## 结论",
+        "## Summary",
         "",
         (
-            "本次 benchmark 使用 `recipes/alpamayo1_sft` 的 Stage-1 SFT 配置，"
-            "分别在不开启 CoC 与开启 CoC 两种数据处理模式下，对 4 组增量优化进行对比。"
-            f"性能指标为跳过初始 warmup 后，step {args.stable_start_step}-{args.stable_end_step} "
-            "的 wall-clock step interval 平均值。"
+            "This benchmark compares four incremental optimization settings for "
+            "`recipes/alpamayo1_sft` using the Stage-1 SFT recipe, with CoC disabled "
+            "and enabled. The reported metric is the mean wall-clock step interval "
+            f"from step {args.stable_start_step} to {args.stable_end_step}, after "
+            "initial warmup."
         ),
         "",
-        "| CoC | 组别 | 稳定阶段平均 step 时间 (s) | 样本数 | 最小值 (s) | 最大值 (s) | 相对本组 baseline 加速比 | 相对上一组加速比 |",
+        "| CoC | Variant | Stable avg step time (s) | Samples | Min (s) | Max (s) | Speedup vs group baseline | Incremental speedup |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
@@ -374,9 +398,9 @@ def write_report(args: argparse.Namespace, results: list[dict[str, Any]]) -> Non
     lines.extend(
         [
             "",
-            "## Benchmark 配置",
+            "## Benchmark Matrix",
             "",
-            "| 组别 | 配置 |",
+            "| Variant | Settings |",
             "| --- | --- |",
         ]
     )
@@ -386,28 +410,28 @@ def write_report(args: argparse.Namespace, results: list[dict[str, Any]]) -> Non
     lines.extend(
         [
             "",
-            "## CoC 设置",
+            "## CoC Settings",
             "",
-            "- `no_coc`: 使用默认 `vla_processor/default.yaml`，监督 `traj_future`。",
-            "- `coc`: 在输入和 label 中加入 `cot`，并设置 `reasoning/ood_reasoning.parquet`、`clip_index_reasoning_mini.parquet`、`use_default_keyframe=false`。",
+            "- `no_coc`: Uses the default `vla_processor/default.yaml` and supervises `traj_future`.",
+            "- `coc`: Adds `cot` to the inputs and labels, and sets `reasoning/ood_reasoning.parquet`, `clip_index_reasoning_mini.parquet`, and `use_default_keyframe=false`.",
             "",
-            "## 测试方法",
+            "## Methodology",
             "",
-            f"- 报告生成时间: {generated_at}",
+            f"- Generated at: {generated_at}",
             f"- Host: `{socket.gethostname()}`",
             f"- OS: `{platform.platform()}`",
             f"- GPU: `{args.nproc_per_node} x {gpu_name}`",
-            f"- Python / uv 环境: `{args.python}`",
+            f"- Python / uv environment: `{args.python}`",
             f"- Checkpoint: `{args.checkpoint}`",
-            f"- PAI 数据目录: `{args.pai_dir}`",
-            "- 训练入口: `python -m torch.distributed.run -m alpamayo1_sft.train_hf`",
-            "- Hydra 配置: `sft_stage1`",
-            f"- 每组运行 step 数: `{args.max_steps}`",
-            f"- 稳定阶段统计窗口: step `{args.stable_start_step}-{args.stable_end_step}`",
-            "- 计时方式: `StepTimeCallback` 统计连续两次 `on_step_end` 之间的间隔，并在计时前做 CUDA synchronize，因此包含数据读取、collate、forward/backward/update 的整体 step interval。",
-            "- benchmark 运行时关闭 checkpoint saving、evaluation、W&B 和外部 reporting。",
+            f"- PAI data root: `{args.pai_dir}`",
+            "- Training entry: `python -m torch.distributed.run -m alpamayo1_sft.train_hf`",
+            "- Hydra config: `sft_stage1`",
+            f"- Max steps per run: `{args.max_steps}`",
+            f"- Stable window: steps `{args.stable_start_step}-{args.stable_end_step}`",
+            "- Timing source: `StepTimeCallback` records intervals between consecutive `on_step_end` callbacks, with CUDA synchronization before timestamps. This includes data loading, collation, forward/backward, and optimizer update time.",
+            "- Checkpoint saving, evaluation, W&B, and external reporting are disabled for benchmark runs.",
             "",
-            "## 结果文件",
+            "## Result Artifacts",
             "",
         ]
     )

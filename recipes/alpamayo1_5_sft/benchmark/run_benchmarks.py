@@ -22,10 +22,12 @@ from typing import Any
 RECIPE_DIR = Path(__file__).resolve().parents[1]
 RESULTS_DIR = RECIPE_DIR / "benchmark" / "results"
 REPORT_PATH = RECIPE_DIR / "benchmark" / "performance_optimization_report.md"
-DEFAULT_CHECKPOINT = Path("/raid/charlie/Alpamayo-1.5-10B-A1-format")
-DEFAULT_PAI_DIR = Path("/raid/charlie/pai_dataset")
-DEFAULT_NAV_ANNOTATIONS = Path("/raid/charlie/alpamayo/alpamayo1.5/notebooks/nav_demo_samples.json")
 DEFAULT_DEEPSPEED = RECIPE_DIR / "configs" / "deepspeed" / "zero2.json"
+
+
+def env_path(name: str) -> Path | None:
+    value = os.environ.get(name)
+    return Path(value) if value else None
 
 
 @dataclass(frozen=True)
@@ -96,9 +98,30 @@ VARIANTS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
-    parser.add_argument("--pai-dir", type=Path, default=DEFAULT_PAI_DIR)
-    parser.add_argument("--nav-annotations", type=Path, default=DEFAULT_NAV_ANNOTATIONS)
+    default_checkpoint = env_path("ALPAMAYO15_SFT_CHECKPOINT")
+    default_pai_dir = env_path("ALPAMAYO_PAI_DIR")
+    default_nav_annotations = env_path("ALPAMAYO15_NAV_ANNOTATIONS")
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=default_checkpoint,
+        required=default_checkpoint is None,
+        help="A1-format Alpamayo-1.5 checkpoint. Can also be set via ALPAMAYO15_SFT_CHECKPOINT.",
+    )
+    parser.add_argument(
+        "--pai-dir",
+        type=Path,
+        default=default_pai_dir,
+        required=default_pai_dir is None,
+        help="PAI dataset root. Can also be set via ALPAMAYO_PAI_DIR.",
+    )
+    parser.add_argument(
+        "--nav-annotations",
+        type=Path,
+        default=default_nav_annotations,
+        required=default_nav_annotations is None,
+        help="Navigation annotations JSON. Can also be set via ALPAMAYO15_NAV_ANNOTATIONS.",
+    )
     parser.add_argument("--nproc-per-node", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=20)
     parser.add_argument("--stable-start-step", type=int, default=5)
