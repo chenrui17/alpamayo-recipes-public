@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from alpamayo_r1.processor.qwen_processor import QwenProcessor
+from alpamayo.processor.qwen_processor import QwenProcessor
 
 _COLLATE_PROCESSORS: dict[tuple, QwenProcessor] = {}
 
